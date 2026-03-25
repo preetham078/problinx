@@ -1,96 +1,379 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PlusCircle, Users, Zap, MessageSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import AppNavbar from "@/components/AppNavbar";
+import { supabase } from "../supabaseClient";
 
-const problems = [
-  { id: 1, title: "Need help building a REST API", desc: "Looking for someone experienced in Node.js/Express to help build a REST API for my e-commerce project.", skills: ["Node.js", "Express"], author: "Anika S.", time: "2h ago" },
-  { id: 2, title: "UI Design for Mobile App", desc: "I need a clean Figma mockup for a fitness tracking app. Can offer Python tutoring in return.", skills: ["Figma", "UI/UX"], author: "Rahul M.", time: "5h ago" },
-  { id: 3, title: "Machine Learning model tuning", desc: "Struggling with hyperparameter tuning for my CNN. Would love guidance from someone with ML experience.", skills: ["Python", "TensorFlow"], author: "Priya K.", time: "1d ago" },
-];
+type ProblemRecord = {
+  id: string;
+  title: string;
+  description: string;
+  skills?: string;
+  created_at?: string;
+  user_id: string;
+};
 
-const team = [
-  { name: "Anika S.", skill: "Node.js", avatar: "A" },
-  { name: "Rahul M.", skill: "UI/UX Design", avatar: "R" },
-  { name: "Priya K.", skill: "Machine Learning", avatar: "P" },
-  { name: "Dev T.", skill: "Flutter", avatar: "D" },
-];
+type SolutionRecord = {
+  approved_at?: string | null;
+  created_at?: string;
+  id: string;
+  problem_id: string;
+  solution_text: string;
+  solver_id: string;
+  status: string;
+};
 
-const Dashboard = () => {
+type ProfileRecord = {
+  name?: string;
+  user_id: string;
+};
+
+const CREDIT_REWARD = 10;
+
+export default function Dashboard() {
+  const [user, setUser] = useState<any>(null);
+  const [problems, setProblems] = useState<ProblemRecord[]>([]);
+  const [solutionsByProblem, setSolutionsByProblem] = useState<Record<string, SolutionRecord[]>>({});
+  const [profilesByUser, setProfilesByUser] = useState<Record<string, ProfileRecord>>({});
+  const [solutionDrafts, setSolutionDrafts] = useState<Record<string, string>>({});
+  const [openComposerId, setOpenComposerId] = useState<string | null>(null);
+  const [submittingFor, setSubmittingFor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dataWarning, setDataWarning] = useState("");
+  const [solutionsEnabled, setSolutionsEnabled] = useState(true);
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  async function loadDashboard() {
+    setLoading(true);
+    setDataWarning("");
+    setSolutionsEnabled(true);
+
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+    setUser(currentUser);
+
+    const { data: problemRows, error: problemsError } = await supabase
+      .from("problems")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (problemsError) {
+      setDataWarning(problemsError.message);
+      setLoading(false);
+      return;
+    }
+
+    const problemsData = (problemRows || []) as ProblemRecord[];
+    setProblems(problemsData);
+
+    const { data: solutionRows, error: solutionsError } = await supabase
+      .from("solutions")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (solutionsError) {
+      setSolutionsEnabled(false);
+      setDataWarning(
+        "Solutions are disabled because the database table is missing. Run the new SQL migration in your Supabase project to enable solving and credit approval."
+      );
+      setSolutionsByProblem({});
+      setLoading(false);
+      return;
+    }
+
+    const groupedSolutions = ((solutionRows || []) as SolutionRecord[]).reduce<
+      Record<string, SolutionRecord[]>
+    >((accumulator, solution) => {
+      accumulator[solution.problem_id] = accumulator[solution.problem_id] || [];
+      accumulator[solution.problem_id].push(solution);
+      return accumulator;
+    }, {});
+
+    setSolutionsByProblem(groupedSolutions);
+
+    const participantIds = Array.from(
+      new Set([
+        ...problemsData.map((problem) => problem.user_id),
+        ...((solutionRows || []) as SolutionRecord[]).map((solution) => solution.solver_id),
+      ])
+    );
+
+    if (participantIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("user_id,name")
+        .in("user_id", participantIds);
+
+      const mappedProfiles = ((profileRows || []) as ProfileRecord[]).reduce<
+        Record<string, ProfileRecord>
+      >((accumulator, profile) => {
+        accumulator[profile.user_id] = profile;
+        return accumulator;
+      }, {});
+
+      setProfilesByUser(mappedProfiles);
+    }
+
+    setLoading(false);
+  }
+
+  function getDisplayName(userId: string) {
+    return profilesByUser[userId]?.name || "Community member";
+  }
+
+  function updateDraft(problemId: string, value: string) {
+    setSolutionDrafts((current) => ({ ...current, [problemId]: value }));
+  }
+
+  async function submitSolution(problemId: string) {
+    const draft = solutionDrafts[problemId]?.trim();
+
+    if (!user) {
+      alert("Please login first");
+      return;
+    }
+
+    if (!solutionsEnabled) {
+      alert("Solutions are not enabled yet. Please apply the new Supabase migration first.");
+      return;
+    }
+
+    if (!draft) {
+      alert("Write your solution before submitting");
+      return;
+    }
+
+    setSubmittingFor(problemId);
+
+    const { error } = await supabase.from("solutions").insert([
+      {
+        problem_id: problemId,
+        solver_id: user.id,
+        solution_text: draft,
+      },
+    ]);
+
+    setSubmittingFor(null);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setSolutionDrafts((current) => ({ ...current, [problemId]: "" }));
+    setOpenComposerId(null);
+    await loadDashboard();
+  }
+
+  const featuredProblems = problems.slice(0, 3);
+  const approvedSolutions = Object.values(solutionsByProblem)
+    .flat()
+    .filter((solution) => solution.status === "approved").length;
+
   return (
-    <div className="min-h-screen bg-background">
-      <AppNavbar />
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        {/* Welcome */}
-        <div className="mb-8 rounded-xl hero-gradient p-8 text-primary-foreground animate-fade-in">
-          <h1 className="font-display text-2xl font-bold sm:text-3xl">Welcome back, Student! 👋</h1>
-          <p className="mt-2 opacity-90">Find peers, exchange skills, and solve problems together.</p>
-          <Link to="/problem">
-            <Button variant="secondary" className="mt-4 gap-2">
-              <PlusCircle className="h-4 w-4" /> Post a Problem
-            </Button>
+    <div className="dashboardPage">
+      <section className="welcomeCard dashboardHero">
+        <div className="dashboardHeroCopy">
+          <span className="heroBadge">HOME</span>
+          <h1>Build your skill network around real student problems.</h1>
+          <p>
+            Discover open problems, submit your own solution, and earn credits
+            only after the original poster approves your help.
+          </p>
+
+          <div className="dashboardCtas">
+            <Link to="/post" className="ctaPrimary">
+              Post a problem
+            </Link>
+            <Link to="/review" className="ctaSecondary">
+              Review solutions
+            </Link>
+          </div>
+        </div>
+
+        <div className="dashboardOrbital">
+          <div className="orbitalRing orbitalRingOne" />
+          <div className="orbitalRing orbitalRingTwo" />
+          <div className="orbitalCard">
+            <strong>{problems.length}</strong>
+            <span>open challenges</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="dashboardStats">
+        <div className="statCard">
+          <h3>{problems.length}</h3>
+          <p>Recent posts</p>
+        </div>
+        <div className="statCard">
+          <h3>{approvedSolutions}</h3>
+          <p>Approved solutions</p>
+        </div>
+        <div className="statCard">
+          <h3>{featuredProblems.length}</h3>
+          <p>Featured now</p>
+        </div>
+      </section>
+
+      <section className="dashboardSection">
+        <div className="sectionHeader">
+          <div>
+            <span className="sectionLabel">Problem feed</span>
+            <h2>Recent Problems</h2>
+          </div>
+          <Link to="/post" className="sectionLink">
+            Create one
           </Link>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-3">
-          {/* Problems */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
-                <Zap className="h-5 w-5 text-accent" /> Recent Problems
-              </h2>
-            </div>
-            {problems.map((p, i) => (
-              <div
-                key={p.id}
-                className="rounded-xl border border-border bg-card p-5 card-elevated animate-fade-in"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <div className="flex items-start justify-between">
-                  <h3 className="font-display font-semibold text-card-foreground">{p.title}</h3>
-                  <span className="text-xs text-muted-foreground">{p.time}</span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{p.desc}</p>
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  {p.skills.map((s) => (
-                    <span key={s} className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-                      {s}
-                    </span>
-                  ))}
-                  <span className="ml-auto text-xs text-muted-foreground">by {p.author}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+        {dataWarning ? <div className="warningCard">{dataWarning}</div> : null}
 
-          {/* Team Preview */}
-          <div>
-            <h2 className="mb-4 font-display text-lg font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-5 w-5 text-accent" /> Peer Network
-            </h2>
-            <div className="space-y-3">
-              {team.map((t, i) => (
-                <div
-                  key={t.name}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 card-elevated animate-fade-in"
-                  style={{ animationDelay: `${i * 80}ms` }}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full hero-gradient text-sm font-bold text-primary-foreground">
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-card-foreground">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.skill}</p>
-                  </div>
-                  <MessageSquare className="ml-auto h-4 w-4 text-muted-foreground" />
-                </div>
-              ))}
-            </div>
+        {loading ? (
+          <div className="emptyStateCard">
+            <h3>Loading dashboard...</h3>
+            <p>Your problem and solution feed is on the way.</p>
           </div>
-        </div>
-      </main>
+        ) : problems.length === 0 ? (
+          <div className="emptyStateCard">
+            <h3>No problems posted yet</h3>
+            <p>
+              Start the first thread for your community and invite others to
+              help solve it.
+            </p>
+            <Link to="/post" className="ctaPrimary">
+              Post the first problem
+            </Link>
+          </div>
+        ) : (
+          <div className="problemFeed">
+            {problems.map((problem, index) => {
+              const solutions = solutionsByProblem[problem.id] || [];
+              const approvedSolution = solutions.find((solution) => solution.status === "approved");
+              const isOwner = user?.id === problem.user_id;
+
+              return (
+                <article key={problem.id} className="problemCard featuredProblemCard problemThreadCard">
+                  <div className="problemHeader">
+                    <div>
+                      <span className="problemIndex">0{index + 1}</span>
+                      <h3>{problem.title}</h3>
+                    </div>
+                    <span className="problemTime">
+                      {problem.created_at
+                        ? new Date(problem.created_at).toLocaleDateString()
+                        : "Today"}
+                    </span>
+                  </div>
+
+                  <p className="problemDesc">{problem.description}</p>
+
+                  <div className="problemMetaRow">
+                    <div className="tags">
+                      <span>{problem.skills || "General help"}</span>
+                      {approvedSolution ? <span>Solved</span> : <span>Open</span>}
+                    </div>
+                    <div className="problemPulse">
+                      <span className="pulseDot" />
+                      Posted by {getDisplayName(problem.user_id)}
+                    </div>
+                  </div>
+
+                  <div className="solutionPanel">
+                    <div className="solutionPanelHeader">
+                      <div>
+                        <h4>Solutions</h4>
+                        <p>
+                          Submit an answer. The problem owner approves the best
+                          one and credits are awarded after approval.
+                        </p>
+                      </div>
+                      {isOwner ? (
+                        <Link to="/review" className="ghostButton actionLink">
+                          Review in approval page
+                        </Link>
+                      ) : null}
+                      {!isOwner && !approvedSolution && solutionsEnabled ? (
+                        <button
+                          className="ghostButton"
+                          onClick={() =>
+                            setOpenComposerId((current) =>
+                              current === problem.id ? null : problem.id
+                            )
+                          }
+                        >
+                          {openComposerId === problem.id ? "Close" : "Solve this"}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {openComposerId === problem.id && !approvedSolution && solutionsEnabled ? (
+                      <div className="solutionComposer">
+                        <textarea
+                          rows={4}
+                          placeholder="Write how you would solve this problem..."
+                          value={solutionDrafts[problem.id] || ""}
+                          onChange={(event) => updateDraft(problem.id, event.target.value)}
+                        />
+                        <button
+                          className="primaryButton"
+                          onClick={() => submitSolution(problem.id)}
+                          disabled={submittingFor === problem.id}
+                        >
+                          {submittingFor === problem.id ? "Submitting..." : "Submit solution"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {!solutionsEnabled ? (
+                      <div className="solutionEmpty">
+                        Solving is disabled right now because the `solutions`
+                        table has not been created in Supabase yet.
+                      </div>
+                    ) : null}
+
+                    <div className="solutionList">
+                      {solutions.length === 0 ? (
+                        <div className="solutionEmpty">
+                          No solutions yet. Be the first one to help.
+                        </div>
+                      ) : (
+                        solutions.map((solution) => {
+                          return (
+                            <div
+                              key={solution.id}
+                              className={`solutionCard ${
+                                solution.status === "approved" ? "solutionCardApproved" : ""
+                              }`}
+                            >
+                              <div className="solutionCardTop">
+                                <div>
+                                  <strong>{getDisplayName(solution.solver_id)}</strong>
+                                  <span className="solutionStatus">
+                                    {solution.status === "approved"
+                                      ? `Approved +${CREDIT_REWARD} credits`
+                                      : isOwner
+                                        ? "Pending your review"
+                                        : "Pending review by problem owner"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <p>{solution.solution_text}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
-};
-
-export default Dashboard;
+}

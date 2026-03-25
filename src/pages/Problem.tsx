@@ -1,85 +1,119 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, AlignLeft, Tags } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import AppNavbar from "@/components/AppNavbar";
+import { supabase } from "../supabaseClient";
 
-const Problem = () => {
-  const [form, setForm] = useState({ title: "", description: "", skills: "" });
+export default function Problem() {
   const navigate = useNavigate();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [skill, setSkill] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title || !form.description || !form.skills) {
-      toast.error("Please fill in all fields");
+  async function submit() {
+    if (!title.trim() || !description.trim() || !skill.trim()) {
+      alert("Please fill in the title, description, and required skill");
       return;
     }
-    toast.success("Problem posted successfully!");
-    navigate("/dashboard");
-  };
+
+    setLoading(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      alert("Please login first");
+      return;
+    }
+
+    const { error } = await supabase.from("problems").insert([
+      {
+        title: title.trim(),
+        description: description.trim(),
+        skills: skill,
+        user_id: user.id,
+      },
+    ]);
+
+    setLoading(false);
+
+    if (error) {
+      alert(`Could not post problem: ${error.message}`);
+      return;
+    }
+
+    alert("Problem posted successfully");
+    navigate("/");
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppNavbar />
-      <main className="mx-auto max-w-2xl px-4 py-8">
-        <div className="animate-fade-in">
-          <h1 className="font-display text-2xl font-bold text-foreground">Post a Problem</h1>
-          <p className="mt-1 text-muted-foreground">Describe your problem and the skills needed to solve it.</p>
+    <div className="problemPage">
+      <section className="problemHero">
+        <div className="problemHeroCopy">
+          <span className="heroBadge">POST A PROBLEM</span>
+          <h1>Turn a stuck moment into a collaboration opportunity.</h1>
+          <p>
+            Share what you are building, what is blocking you, and which skill
+            would help most. The clearer the post, the better your matches.
+          </p>
 
-          <div className="mt-8 rounded-xl border border-border bg-card p-8 card-elevated">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="title">Problem Title</Label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="title"
-                    placeholder="e.g. Need help with REST API"
-                    className="pl-10"
-                    value={form.title}
-                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="desc">Description</Label>
-                <div className="relative">
-                  <AlignLeft className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Textarea
-                    id="desc"
-                    placeholder="Describe your problem in detail..."
-                    className="min-h-[120px] pl-10"
-                    value={form.description}
-                    onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="skills">Required Skills</Label>
-                <div className="relative">
-                  <Tags className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="skills"
-                    placeholder="e.g. Node.js, Express, MongoDB"
-                    className="pl-10"
-                    value={form.skills}
-                    onChange={(e) => setForm((p) => ({ ...p, skills: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <Button type="submit" className="w-full">
-                Submit Problem
-              </Button>
-            </form>
+          <div className="problemSteps">
+            <div className="stepCard">
+              <strong>1</strong>
+              <span>Write the challenge clearly</span>
+            </div>
+            <div className="stepCard">
+              <strong>2</strong>
+              <span>Name the skill you need</span>
+            </div>
+            <div className="stepCard">
+              <strong>3</strong>
+              <span>Invite the right peer help</span>
+            </div>
           </div>
         </div>
-      </main>
+      </section>
+
+      <section className="problemComposer">
+        <div className="sectionHeader">
+          <div>
+            <span className="sectionLabel">New challenge</span>
+            <h2>Create your post</h2>
+          </div>
+        </div>
+
+        <div className="formCard problemFormCard">
+          <label htmlFor="problem-title">Problem title</label>
+          <input
+            id="problem-title"
+            placeholder="Example: Need help debugging my React dashboard"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+
+          <label htmlFor="problem-description">Describe the problem</label>
+          <textarea
+            id="problem-description"
+            placeholder="What are you trying to build, what have you tried, and where are you stuck?"
+            rows={6}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+
+          <label htmlFor="problem-skill">Required skill</label>
+          <input
+            id="problem-skill"
+            placeholder="Example: React, SQL, Figma, Python"
+            value={skill}
+            onChange={(e) => setSkill(e.target.value)}
+          />
+
+          <button onClick={submit} disabled={loading} className="primaryButton">
+            {loading ? "Posting..." : "Submit Problem"}
+          </button>
+        </div>
+      </section>
     </div>
   );
-};
-
-export default Problem;
+}

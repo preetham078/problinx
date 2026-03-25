@@ -77,12 +77,50 @@ export type Database = {
         }
         Relationships: []
       }
+      solutions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          problem_id: string
+          solution_text: string
+          solver_id: string
+          status: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          problem_id: string
+          solution_text: string
+          solver_id: string
+          status?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          problem_id?: string
+          solution_text?: string
+          solver_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      approve_solution: {
+        Args: {
+          p_solution_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
