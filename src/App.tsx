@@ -177,7 +177,7 @@ window.location.href="/login"
 
 return(
 
-<BrowserRouter>
+<BrowserRouter basename={import.meta.env.BASE_URL}>
 
 <nav className="navbar">
 
