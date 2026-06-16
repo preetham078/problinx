@@ -25,6 +25,7 @@ a {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -75,6 +76,14 @@ textarea {
 .navlinks a {
   color: #334155;
   font-weight: 600;
+}
+
+.navPill {
+  padding: 11px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+  color: white !important;
+  box-shadow: 0 12px 30px rgba(29, 78, 216, 0.22);
 }
 
 .actionLink {
@@ -226,6 +235,10 @@ textarea {
   margin-top: 26px;
 }
 
+.storiesSection {
+  margin-top: 30px;
+}
+
 .sectionHeader {
   display: flex;
   align-items: center;
@@ -249,6 +262,123 @@ textarea {
 .sectionLink {
   background: rgba(14, 165, 233, 0.12);
   color: #0f6bcb;
+}
+
+.storyToggleButton {
+  margin-top: 0;
+}
+
+.storyComposer {
+  margin-bottom: 16px;
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.storyComposer label {
+  display: block;
+  margin-top: 10px;
+  color: #1e293b;
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.storyTray {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 280px);
+  gap: 14px;
+  overflow-x: auto;
+  padding: 2px 2px 12px;
+}
+
+.storyCard {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.86)),
+    #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  color: white;
+}
+
+.storyMedia {
+  position: absolute;
+}
+
+.storyCard {
+  position: relative;
+}
+
+.storyMedia,
+.storyMedia img {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.storyMedia img {
+  object-fit: cover;
+}
+
+.storyMedia::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.82));
+}
+
+.storyAvatar {
+  width: 62px;
+  height: 62px;
+  margin: 20px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  border: 3px solid rgba(255, 255, 255, 0.76);
+  color: white;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.storyBody {
+  position: relative;
+  z-index: 1;
+  padding: 18px;
+}
+
+.storyBody strong,
+.storyBody span {
+  display: block;
+}
+
+.storyBody p {
+  margin: 8px 0 10px;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.45;
+}
+
+.storyBody span {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.storyPlaceholder {
+  padding: 18px;
+}
+
+.storyEmptyCard {
+  margin-bottom: 0;
 }
 
 .problemFeed {
@@ -481,6 +611,7 @@ button:disabled {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   margin-top: 8px;
@@ -492,6 +623,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   outline: 2px solid rgba(14, 165, 233, 0.3);
   border-color: #38bdf8;
@@ -665,6 +797,158 @@ textarea:focus {
   font-weight: 700;
 }
 
+.landingPage {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px 20px 56px;
+}
+
+.landingHero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.landingHeroCopy,
+.landingCallout {
+  position: relative;
+  overflow: hidden;
+  padding: 34px;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.16), transparent 28%),
+    linear-gradient(140deg, #0f172a 0%, #1d4ed8 50%, #06b6d4 100%);
+  color: white;
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.18);
+}
+
+.landingHeroCopy h1,
+.landingCallout h2 {
+  margin: 16px 0 12px;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 1.03;
+}
+
+.landingHeroCopy p,
+.landingCallout p {
+  max-width: 40rem;
+  color: rgba(255, 255, 255, 0.84);
+  line-height: 1.75;
+}
+
+.landingActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.landingTrustRow,
+.journeyGrid,
+.spotlightGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.landingTrustRow {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.landingTrustCard,
+.journeyCard,
+.spotlightCard,
+.previewPanel {
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.landingTrustCard {
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.landingTrustCard strong,
+.journeyCard h3,
+.spotlightCard h3,
+.previewPanel h2 {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.landingTrustCard span {
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.6;
+}
+
+.landingPreview {
+  display: grid;
+  gap: 16px;
+}
+
+.previewPanel {
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.previewPanelPrimary {
+  min-height: 270px;
+}
+
+.previewPanelSecondary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.previewLabel,
+.journeyIndex {
+  display: inline-flex;
+  margin-bottom: 12px;
+  color: #0f6bcb;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landingSection {
+  margin-top: 28px;
+}
+
+.journeyGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.journeyCard,
+.spotlightCard {
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.journeyCard p,
+.spotlightCard p,
+.previewPanel p {
+  margin: 0;
+  color: #5b6880;
+  line-height: 1.65;
+}
+
+.spotlightGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.landingCallout {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  margin-top: 28px;
+}
+
 .solutionPanel {
   margin-top: 18px;
   padding: 18px;
@@ -778,6 +1062,61 @@ textarea:focus {
   left: 38%;
   bottom: -30px;
   background: rgba(34, 211, 238, 0.22);
+}
+
+@media (max-width: 900px) {
+  .dashboardHero,
+  .landingHero,
+  .authShell,
+  .landingCallout {
+    grid-template-columns: 1fr;
+  }
+
+  .landingCallout {
+    display: grid;
+  }
+
+  .dashboardStats,
+  .heroStats,
+  .problemSteps,
+  .journeyGrid,
+  .spotlightGrid,
+  .landingTrustRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .navbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .navlinks {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .landingPage,
+  .dashboardPage,
+  .problemPage,
+  .reviewPage,
+  .profilePage {
+    padding-top: 24px;
+  }
+
+  .landingHeroCopy,
+  .landingCallout,
+  .problemHero,
+  .profileHero,
+  .reviewHero,
+  .welcomeCard,
+  .authHero,
+  .authCard {
+    padding: 24px;
+    border-radius: 24px;
+  }
 }
 
 .profileIdentity,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "../supabaseClient";
 
 type ProblemRecord = {
@@ -22,23 +23,42 @@ type SolutionRecord = {
 };
 
 type ProfileRecord = {
+  display_name?: string;
+  email?: string;
   name?: string;
+  user_id: string;
+};
+
+type StoryRecord = {
+  content: string;
+  created_at?: string;
+  expires_at: string;
+  id: string;
+  media_url?: string | null;
   user_id: string;
 };
 
 const CREDIT_REWARD = 10;
 
 export default function Dashboard() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
+  const [stories, setStories] = useState<StoryRecord[]>([]);
   const [solutionsByProblem, setSolutionsByProblem] = useState<Record<string, SolutionRecord[]>>({});
   const [profilesByUser, setProfilesByUser] = useState<Record<string, ProfileRecord>>({});
   const [solutionDrafts, setSolutionDrafts] = useState<Record<string, string>>({});
   const [openComposerId, setOpenComposerId] = useState<string | null>(null);
   const [submittingFor, setSubmittingFor] = useState<string | null>(null);
+  const [storyText, setStoryText] = useState("");
+  const [storyMediaUrl, setStoryMediaUrl] = useState("");
+  const [storyDurationHours, setStoryDurationHours] = useState("24");
+  const [storyComposerOpen, setStoryComposerOpen] = useState(false);
+  const [submittingStory, setSubmittingStory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dataWarning, setDataWarning] = useState("");
+  const [storyWarning, setStoryWarning] = useState("");
   const [solutionsEnabled, setSolutionsEnabled] = useState(true);
+  const [storiesEnabled, setStoriesEnabled] = useState(true);
 
   useEffect(() => {
     loadDashboard();
@@ -47,7 +67,9 @@ export default function Dashboard() {
   async function loadDashboard() {
     setLoading(true);
     setDataWarning("");
+    setStoryWarning("");
     setSolutionsEnabled(true);
+    setStoriesEnabled(true);
 
     const {
       data: { user: currentUser },
@@ -93,38 +115,150 @@ export default function Dashboard() {
 
     setSolutionsByProblem(groupedSolutions);
 
+    const nowIso = new Date().toISOString();
+    const { data: storyRows, error: storiesError } = await supabase
+      .from("stories")
+      .select("*")
+      .gt("expires_at", nowIso)
+      .order("created_at", { ascending: false });
+
+    const activeStories = (storyRows || []) as StoryRecord[];
+
+    if (storiesError) {
+      setStoriesEnabled(false);
+      setStories([]);
+      setStoryWarning(
+        "Stories are disabled because the database table is missing. Run the new SQL migration in your Supabase project to enable dashboard stories."
+      );
+    } else {
+      setStories(activeStories);
+    }
+
     const participantIds = Array.from(
       new Set([
         ...problemsData.map((problem) => problem.user_id),
         ...((solutionRows || []) as SolutionRecord[]).map((solution) => solution.solver_id),
+        ...activeStories.map((story) => story.user_id),
       ])
     );
 
     if (participantIds.length > 0) {
-      const { data: profileRows } = await supabase
-        .from("profiles")
-        .select("user_id,name")
-        .in("user_id", participantIds);
+      const { data: displayRows, error: displayNameError } = await supabase.rpc(
+        "get_user_display_names",
+        {
+          p_user_ids: participantIds,
+        }
+      );
 
-      const mappedProfiles = ((profileRows || []) as ProfileRecord[]).reduce<
-        Record<string, ProfileRecord>
-      >((accumulator, profile) => {
-        accumulator[profile.user_id] = profile;
-        return accumulator;
-      }, {});
+      if (!displayNameError) {
+        const mappedDisplayNames = ((displayRows || []) as ProfileRecord[]).reduce<
+          Record<string, ProfileRecord>
+        >((accumulator, profile) => {
+          accumulator[profile.user_id] = profile;
+          return accumulator;
+        }, {});
 
-      setProfilesByUser(mappedProfiles);
+        setProfilesByUser(mappedDisplayNames);
+      } else {
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("user_id,name,email")
+          .in("user_id", participantIds);
+
+        const mappedProfiles = ((profileRows || []) as ProfileRecord[]).reduce<
+          Record<string, ProfileRecord>
+        >((accumulator, profile) => {
+          accumulator[profile.user_id] = profile;
+          return accumulator;
+        }, {});
+
+        setProfilesByUser(mappedProfiles);
+      }
     }
 
     setLoading(false);
   }
 
   function getDisplayName(userId: string) {
-    return profilesByUser[userId]?.name || "Community member";
+    const profile = profilesByUser[userId];
+    const currentUserName =
+      user?.id === userId
+        ? user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split("@")[0]
+        : "";
+
+    return (
+      profile?.display_name ||
+      profile?.name ||
+      profile?.email?.split("@")[0] ||
+      currentUserName ||
+      "Student"
+    );
+  }
+
+  function getStoryTimeLeft(expiresAt: string) {
+    const millisecondsLeft = new Date(expiresAt).getTime() - Date.now();
+    const minutesLeft = Math.max(1, Math.ceil(millisecondsLeft / 60000));
+
+    if (minutesLeft < 60) {
+      return `${minutesLeft}m left`;
+    }
+
+    return `${Math.ceil(minutesLeft / 60)}h left`;
   }
 
   function updateDraft(problemId: string, value: string) {
     setSolutionDrafts((current) => ({ ...current, [problemId]: value }));
+  }
+
+  async function submitStory() {
+    const content = storyText.trim();
+    const mediaUrl = storyMediaUrl.trim();
+    const durationHours = Number(storyDurationHours);
+
+    if (!user) {
+      alert("Please login first");
+      return;
+    }
+
+    if (!storiesEnabled) {
+      alert("Stories are not enabled yet. Please apply the new Supabase migration first.");
+      return;
+    }
+
+    if (!content && !mediaUrl) {
+      alert("Write a story or add a media URL before posting");
+      return;
+    }
+
+    if (!Number.isFinite(durationHours) || durationHours < 1 || durationHours > 168) {
+      alert("Choose a story duration between 1 hour and 7 days");
+      return;
+    }
+
+    setSubmittingStory(true);
+
+    const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase.from("stories").insert([
+      {
+        content,
+        expires_at: expiresAt,
+        media_url: mediaUrl || null,
+        user_id: user.id,
+      },
+    ]);
+
+    setSubmittingStory(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setStoryText("");
+    setStoryMediaUrl("");
+    setStoryDurationHours("24");
+    setStoryComposerOpen(false);
+    await loadDashboard();
   }
 
   async function submitSolution(problemId: string) {
@@ -201,6 +335,96 @@ export default function Dashboard() {
             <span>open challenges</span>
           </div>
         </div>
+      </section>
+
+      <section className="dashboardSection storiesSection">
+        <div className="sectionHeader">
+          <div>
+            <span className="sectionLabel">Stories</span>
+            <h2>Community Stories</h2>
+          </div>
+          <button
+            className="sectionLink storyToggleButton"
+            onClick={() => setStoryComposerOpen((current) => !current)}
+          >
+            {storyComposerOpen ? "Close" : "Add story"}
+          </button>
+        </div>
+
+        {storyWarning ? <div className="warningCard">{storyWarning}</div> : null}
+
+        {storyComposerOpen ? (
+          <div className="storyComposer">
+            <label htmlFor="story-text">Story</label>
+            <textarea
+              id="story-text"
+              rows={3}
+              placeholder="Share a quick update with everyone..."
+              value={storyText}
+              onChange={(event) => setStoryText(event.target.value)}
+            />
+
+            <label htmlFor="story-media">Media URL</label>
+            <input
+              id="story-media"
+              placeholder="Optional image or video URL"
+              value={storyMediaUrl}
+              onChange={(event) => setStoryMediaUrl(event.target.value)}
+            />
+
+            <label htmlFor="story-duration">Visible for</label>
+            <select
+              id="story-duration"
+              value={storyDurationHours}
+              onChange={(event) => setStoryDurationHours(event.target.value)}
+            >
+              <option value="1">1 hour</option>
+              <option value="6">6 hours</option>
+              <option value="12">12 hours</option>
+              <option value="24">24 hours</option>
+              <option value="48">2 days</option>
+              <option value="168">7 days</option>
+            </select>
+
+            <button
+              className="primaryButton"
+              onClick={submitStory}
+              disabled={submittingStory}
+            >
+              {submittingStory ? "Uploading..." : "Upload story"}
+            </button>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="storyTray">
+            <div className="storyCard storyPlaceholder">Loading stories...</div>
+          </div>
+        ) : stories.length === 0 ? (
+          <div className="emptyStateCard storyEmptyCard">
+            <h3>No active stories</h3>
+            <p>Upload the first story and it will be visible here until its time expires.</p>
+          </div>
+        ) : (
+          <div className="storyTray">
+            {stories.map((story) => (
+              <article key={story.id} className="storyCard">
+                {story.media_url ? (
+                  <div className="storyMedia">
+                    <img src={story.media_url} alt="" />
+                  </div>
+                ) : (
+                  <div className="storyAvatar">{getDisplayName(story.user_id).charAt(0)}</div>
+                )}
+                <div className="storyBody">
+                  <strong>{getDisplayName(story.user_id)}</strong>
+                  {story.content ? <p>{story.content}</p> : null}
+                  <span>{getStoryTimeLeft(story.expires_at)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="dashboardStats">

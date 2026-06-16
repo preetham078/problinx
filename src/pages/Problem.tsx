@@ -44,7 +44,7 @@ export default function Problem() {
     }
 
     alert("Problem posted successfully");
-    navigate("/");
+    navigate("/dashboard");
   }
 
   return (
