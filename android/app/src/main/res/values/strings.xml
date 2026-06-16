@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Problinx</string>
+    <string name="title_activity_main">Problinx</string>
+    <string name="package_name">com.problinx.app</string>
+    <string name="custom_url_scheme">com.problinx.app</string>
+</resources>

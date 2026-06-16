@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "../supabaseClient";
 
 type ProblemRecord = {
@@ -20,6 +21,8 @@ type SolutionRecord = {
 };
 
 type ProfileRecord = {
+  display_name?: string;
+  email?: string;
   name?: string;
   user_id: string;
 };
@@ -27,7 +30,7 @@ type ProfileRecord = {
 const CREDIT_REWARD = 10;
 
 export default function ReviewSolutions() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
   const [solutionsByProblem, setSolutionsByProblem] = useState<Record<string, SolutionRecord[]>>({});
   const [profilesByUser, setProfilesByUser] = useState<Record<string, ProfileRecord>>({});
@@ -104,26 +107,45 @@ export default function ReviewSolutions() {
     );
 
     if (solverIds.length > 0) {
-      const { data: profileRows } = await supabase
-        .from("profiles")
-        .select("user_id,name")
-        .in("user_id", solverIds);
+      const { data: displayRows, error: displayNameError } = await supabase.rpc(
+        "get_user_display_names",
+        {
+          p_user_ids: solverIds,
+        }
+      );
 
-      const mappedProfiles = ((profileRows || []) as ProfileRecord[]).reduce<
-        Record<string, ProfileRecord>
-      >((accumulator, profile) => {
-        accumulator[profile.user_id] = profile;
-        return accumulator;
-      }, {});
+      if (!displayNameError) {
+        const mappedDisplayNames = ((displayRows || []) as ProfileRecord[]).reduce<
+          Record<string, ProfileRecord>
+        >((accumulator, profile) => {
+          accumulator[profile.user_id] = profile;
+          return accumulator;
+        }, {});
 
-      setProfilesByUser(mappedProfiles);
+        setProfilesByUser(mappedDisplayNames);
+      } else {
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("user_id,name,email")
+          .in("user_id", solverIds);
+
+        const mappedProfiles = ((profileRows || []) as ProfileRecord[]).reduce<
+          Record<string, ProfileRecord>
+        >((accumulator, profile) => {
+          accumulator[profile.user_id] = profile;
+          return accumulator;
+        }, {});
+
+        setProfilesByUser(mappedProfiles);
+      }
     }
 
     setLoading(false);
   }
 
   function getDisplayName(userId: string) {
-    return profilesByUser[userId]?.name || "Community member";
+    const profile = profilesByUser[userId];
+    return profile?.display_name || profile?.name || profile?.email?.split("@")[0] || "Student";
   }
 
   async function approveSolution(solutionId: string) {
@@ -182,8 +204,8 @@ export default function ReviewSolutions() {
             <span className="sectionLabel">Owner review</span>
             <h2>Your review queue</h2>
           </div>
-          <Link to="/" className="sectionLink">
-            Back to home
+          <Link to="/dashboard" className="sectionLink">
+            Back to dashboard
           </Link>
         </div>
 

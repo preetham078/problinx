@@ -1,235 +1,90 @@
-// // // import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-
-// // // import Dashboard from "./pages/Dashboard";
-// // // import Problem from "./pages/Problem";
-// // // import Profile from "./pages/Profile";
-
-// // // function App() {
-// // //   return (
-// // //     <BrowserRouter>
-
-// // //       {/* Navbar */}
-// // //       <nav
-// // //         style={{
-// // //           display: "flex",
-// // //           justifyContent: "space-between",
-// // //           padding: "15px 40px",
-// // //           background: "#0f172a",
-// // //           color: "#fff",
-// // //           alignItems: "center"
-// // //         }}
-// // //       >
-// // //         <h2>PROBLINX</h2>
-
-// // //         <div style={{ display: "flex", gap: "20px" }}>
-// // //           <Link to="/" style={{ color: "#fff", textDecoration: "none" }}>
-// // //             Dashboard
-// // //           </Link>
-
-// // //           <Link to="/post" style={{ color: "#fff", textDecoration: "none" }}>
-// // //             Post Problem
-// // //           </Link>
-
-// // //           <Link to="/profile" style={{ color: "#fff", textDecoration: "none" }}>
-// // //             Profile
-// // //           </Link>
-// // //         </div>
-// // //       </nav>
-
-// // //       {/* Pages */}
-// // //       <Routes>
-// // //         <Route path="/" element={<Dashboard />} />
-// // //         <Route path="/post" element={<Problem />} />
-// // //         <Route path="/profile" element={<Profile />} />
-// // //       </Routes>
-
-// // //     </BrowserRouter>
-// // //   );
-// // // }
-
-// // // export default App;
-// // import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-// // import Dashboard from "./pages/Dashboard";
-// // import Problem from "./pages/Problem";
-// // import Profile from "./pages/Profile";
-
-// // function App() {
-// //   return (
-// //     <BrowserRouter>
-
-// //       <nav className="navbar">
-
-// //         <h2 className="logo">🚀 PROBLINX</h2>
-
-// //         <div className="navlinks">
-// //           <Link to="/">Dashboard</Link>
-// //           <Link to="/post">Post Problem</Link>
-// //           <Link to="/profile">Profile</Link>
-// //         </div>
-
-// //       </nav>
-
-// //       <Routes>
-// //         <Route path="/" element={<Dashboard />} />
-// //         <Route path="/post" element={<Problem />} />
-// //         <Route path="/profile" element={<Profile />} />
-// //       </Routes>
-
-// //     </BrowserRouter>
-// //   );
-// // }
-
-// // export default App;
-// import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-// import { supabase } from "./supabaseClient";
-
-// import Dashboard from "./pages/Dashboard";
-// import Problem from "./pages/Problem";
-// import Profile from "./pages/Profile";
-// import Login from "./pages/Login";
-// import Register from "./pages/Register";
-
-// function App() {
-
-// async function logout(){
-// await supabase.auth.signOut()
-// window.location.href="/login"
-// }
-
-// return (
-
-// <BrowserRouter>
-
-// <nav className="navbar">
-
-// <h2 className="logo">🚀 PROBLINX</h2>
-
-// <div className="navLinks">
-// <Link to="/">Dashboard</Link>
-// <Link to="/post">Post Problem</Link>
-// <Link to="/profile">Profile</Link>
-// <Link to="/login">Login</Link>
-// <Link to="/register">Register</Link>
-// </div>
-
-// </nav>
-// <Routes>
-
-// <Route path="/" element={<Dashboard />} />
-
-// <Route path="/post" element={<Problem />} />
-
-// <Route path="/profile" element={<Profile />} />
-
-// <Route path="/login" element={<Login />} />
-
-// <Route path="/register" element={<Register />} />
-
-// </Routes>
-
-// </BrowserRouter>
-
-// );
-
-// }
-
-// export default App;
-import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { BrowserRouter, HashRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
 import Dashboard from "./pages/Dashboard";
+import Index from "./pages/Index";
+import Login from "./pages/Login";
 import Problem from "./pages/Problem";
 import Profile from "./pages/Profile";
-import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ReviewSolutions from "./pages/ReviewSolutions";
 
 function App() {
+  const [user, setUser] = useState<any>(null);
+  const isNativePlatform = Capacitor.isNativePlatform();
+  const Router = isNativePlatform ? HashRouter : BrowserRouter;
+  const routerProps = isNativePlatform ? {} : { basename: import.meta.env.BASE_URL };
 
-const [user,setUser] = useState<any>(null)
+  useEffect(() => {
+    checkUser();
 
-useEffect(()=>{
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
 
-checkUser()
+    return () => subscription.unsubscribe();
+  }, []);
 
-supabase.auth.onAuthStateChange((event,session)=>{
-setUser(session?.user ?? null)
-})
+  async function checkUser() {
+    const { data } = await supabase.auth.getUser();
+    setUser(data.user);
+  }
 
-},[])
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = isNativePlatform ? "/#/login" : `${import.meta.env.BASE_URL}login`;
+  }
 
-async function checkUser(){
+  return (
+    <Router {...routerProps}>
+      <nav className="navbar">
+        <Link to={user ? "/dashboard" : "/"} className="logo">
+          PROB<span>LINX</span>
+        </Link>
 
-const {data} = await supabase.auth.getUser()
+        <div className="navlinks">
+          {user ? (
+            <>
+              <Link to="/dashboard">Dashboard</Link>
+              <Link to="/post">Post Problem</Link>
+              <Link to="/review">Review Solutions</Link>
+              <Link to="/profile">Profile</Link>
+              <button onClick={logout}>Logout</button>
+            </>
+          ) : (
+            <>
+              <Link to="/">Home</Link>
+              <Link to="/login">Login</Link>
+              <Link to="/register" className="navPill">
+                Join Problinx
+              </Link>
+            </>
+          )}
+        </div>
+      </nav>
 
-setUser(data.user)
-
-}
-
-async function logout(){
-
-await supabase.auth.signOut()
-
-window.location.href="/login"
-
-}
-
-return(
-
-<BrowserRouter basename={import.meta.env.BASE_URL}>
-
-<nav className="navbar">
-
-<Link to="/" className="logo">
-PROB<span>LINX</span>
-</Link>
-
-<div className="navlinks">
-
-{user && (
-<>
-<Link to="/">Home</Link>
-<Link to="/post">Post Problem</Link>
-<Link to="/review">Review Solutions</Link>
-<Link to="/profile">Profile</Link>
-
-<button onClick={logout}>
-Logout
-</button>
-</>
-)}
-
-</div>
-
-</nav>
-
-<Routes>
-
-{!user && (
-<>
-<Route path="/login" element={<Login />} />
-<Route path="/register" element={<Register />} />
-<Route path="*" element={<Navigate to="/login"/>} />
-</>
-)}
-
-{user && (
-<>
-<Route path="/" element={<Dashboard />} />
-<Route path="/post" element={<Problem />} />
-<Route path="/review" element={<ReviewSolutions />} />
-<Route path="/profile" element={<Profile />} />
-<Route path="*" element={<Navigate to="/"/>} />
-</>
-)}
-
-</Routes>
-
-</BrowserRouter>
-
-)
-
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route
+          path="/register"
+          element={user ? <Navigate to="/dashboard" replace /> : <Register />}
+        />
+        <Route
+          path="/dashboard"
+          element={user ? <Dashboard /> : <Navigate to="/login" replace />}
+        />
+        <Route path="/post" element={user ? <Problem /> : <Navigate to="/login" replace />} />
+        <Route path="/review" element={user ? <ReviewSolutions /> : <Navigate to="/login" replace />} />
+        <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
+      </Routes>
+    </Router>
+  );
 }
 
 export default App;
